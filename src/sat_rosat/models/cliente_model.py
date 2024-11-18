@@ -1,20 +1,46 @@
-from dataclasses import dataclass
-from typing import Optional
 
-@dataclass
-class Cliente:
-    id_cliente: int
-    codigo_cliente: str
-    nombre_cliente: str
-    nombre_cliente_comercial: str
-    nif_cliente: str
-    domicilio: str
-    poblacion_id: int
-    telefono_1: Optional[int]
-    telefono_2: Optional[int]
-    nota_cliente: Optional[str]
-    nombre_poblacion: str  # Este campo viene de la unión con tabla_poblacion
+import psycopg2
 
-    def __post_init__(self):
-        self.telefono_1 = int(self.telefono_1) if self.telefono_1 is not None else None
-        self.telefono_2 = int(self.telefono_2) if self.telefono_2 is not None else None
+class ClienteModel:
+    def __init__(self):
+        self.conexion = psycopg2.connect(
+            host="localhost",
+            database="bd_rosat",
+            user="postgres",
+            password="pescacom_2"
+        )
+
+    def obtener_todos(self):
+        with self.conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT c.id_cliente, c.codigo_cliente, c.nombre_cliente, c.nif_cliente, 
+                p.nombre_poblacion, c.telefono_1 AS telefono
+                FROM tabla_clientes c
+                LEFT JOIN tabla_poblacion p ON c.poblacion_id = p.id_poblacion
+            """)
+            return [
+                {
+                    "id_cliente": row[0],
+                    "codigo_cliente": row[1],
+                    "nombre_cliente": row[2],
+                    "nif_cliente": row[3],
+                    "nombre_poblacion": row[4],
+                    "telefono": row[5],
+                }
+                for row in cursor.fetchall()
+            ]
+
+    def obtener_poblaciones(self):
+        with self.conexion.cursor() as cursor:
+            cursor.execute("SELECT id_poblacion, nombre_poblacion FROM tabla_poblacion")
+            return [
+                {"id_poblacion": row[0], "nombre_poblacion": row[1]} for row in cursor.fetchall()
+            ]
+
+    def insertar_cliente(self, codigo, nombre, nif, poblacion_id, telefono, nota):
+        with self.conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO tabla_clientes (codigo_cliente, nombre_cliente, nif_cliente, poblacion_id, telefono_1, nota_cliente)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (codigo, nombre, nif, poblacion_id, telefono, nota))
+            self.conexion.commit()
